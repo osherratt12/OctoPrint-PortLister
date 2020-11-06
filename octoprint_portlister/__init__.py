@@ -10,6 +10,8 @@ import octoprint.plugin
 from octoprint.printer import get_connection_options
 from octoprint.util import get_exception_string
 
+#Add aditional watchdog to detect GPIO serial connections.  
+
 class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 	def __init__(self, parent):
 		self._parent = parent
