@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import os
+import serial
 from threading import Timer
 import watchdog
 from watchdog.observers import Observer
@@ -11,23 +12,58 @@ from octoprint.printer import get_connection_options
 from octoprint.util import get_exception_string
 
 class PortListEventHandler(watchdog.events.FileSystemEventHandler):
+	
 	def __init__(self, parent):
 		self._parent = parent
-
+	
 	def on_created(self, event):
 		if not event.is_directory:
 			self._parent.on_port_created(event.src_path)
 
+
+class gpioPortEventHandler():
+#setup class
+	def __init__(self, GPIO_new):
+		self.GPIO = GPIO_new
+		self.thread_list = []
+ 		self.stop_threads = False
+ 		for i in range(len(self.GPIO)):
+			t = Thread(target=self.GPIO_Monitor, args=(self.GPIO[i],))
+			self.thread_list.append(t)				
+			self._logger.info('added ' + GPIOarray[i] + ' to thread list')
+		#start all threads
+		for threads in self.thread_list:
+ 			threads.start()
+#Serial monitor script
+	def GPIO_Monitor(self, GPIOSerial):
+		while not self.stop_threads:
+			self.ser = serial.Serial(GPIOSerial)
+			while not self.ser.in_waiting:
+				pass # do nothing
+			else:
+			#stop all threads
+				for threads in self.thread_list:
+					threads.stop_threads = True
+			#connect to detected port
+				self._parent.on_port_created(self.GPIO)
+				self._logger.info('Port ' + GPIOSerial + ' Found:')
+    					
+			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
                        octoprint.plugin.TemplatePlugin,
                        octoprint.plugin.SettingsPlugin):
 	def on_after_startup(self, *args, **kwargs):
 		self._logger.info("Port Lister %s %s" % (repr(args), repr(kwargs)))
+
 		event_handler = PortListEventHandler(self)
 		self._observer = Observer()
 		self._observer.schedule(event_handler, "/dev", recursive=False)
 		self._observer.start()
+
+		#get ports from settings
+		GPIOarray = ['/dev/ttyAMA0', '/dev/ttyS0']
+		gpio = gpioPortEventHandler(GPIOarray)
 
 	def on_port_created(self, port, *args, **kwargs):
 		# if we're already connected ignore it
@@ -115,4 +151,3 @@ def __plugin_load__():
 	__plugin_hooks__ = {
 		"octoprint.plugin.softwareupdate.check_config": plugin.get_update_information,
 	}
-
