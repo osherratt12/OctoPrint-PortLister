@@ -10,16 +10,30 @@ import octoprint.plugin
 from octoprint.printer import get_connection_options
 from octoprint.util import get_exception_string
 
-#Add aditional watchdog to detect GPIO serial connections.  
-
 class PortListEventHandler(watchdog.events.FileSystemEventHandler):
+	
 	def __init__(self, parent):
 		self._parent = parent
-
+	
 	def on_created(self, event):
 		if not event.is_directory:
 			self._parent.on_port_created(event.src_path)
 
+class gpioPortEventHandler():
+
+	def __init__(self, GPIO, parent):
+		self._parent = parent
+		self.GPIO = GPIO
+
+	def GPIO_monitor(self):
+		connection_options = get_connection_options()
+		self.ser = serial.Serial(self.GPIO)
+		while not self.ser.in_waiting:
+			pass
+		else:
+			self._parent.on_port_created(self.GPIO)
+    					
+			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
                        octoprint.plugin.TemplatePlugin,
@@ -27,8 +41,10 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 	def on_after_startup(self, *args, **kwargs):
 		self._logger.info("Port Lister %s %s" % (repr(args), repr(kwargs)))
 		event_handler = PortListEventHandler(self)
+		gpio_handler = gpioPortEventHandler(self, '/dev/ttyAMA0')
 		self._observer = Observer()
 		self._observer.schedule(event_handler, "/dev", recursive=False)
+		self._observer.schedule(gpio_handler)
 		self._observer.start()
 
 	def on_port_created(self, port, *args, **kwargs):
