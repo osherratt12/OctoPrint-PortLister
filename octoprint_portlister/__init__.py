@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import os
+import serial
 from threading import Timer
 import watchdog
 from watchdog.observers import Observer
