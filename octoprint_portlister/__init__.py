@@ -22,14 +22,16 @@ class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 
 class gpioPortEventHandler():
 #setup class
-	def __init__(self, GPIO_new):
+	def __init__(self, parent, GPIO_new):
 		self.GPIO = GPIO_new
+		self._parent = parent
+
 		self.thread_list = []
  		self.stop_threads = False
  		for i in range(len(self.GPIO)):
 			t = Thread(target=self.GPIO_Monitor, args=(self.GPIO[i],))
 			self.thread_list.append(t)				
-			self._logger.info('added ' + GPIOarray[i] + ' to thread list')
+			print 'added ' + GPIO_new[i] + ' to thread list'
 		#start all threads
 		for threads in self.thread_list:
  			threads.start()
@@ -44,8 +46,8 @@ class gpioPortEventHandler():
 				for threads in self.thread_list:
 					threads.stop_threads = True
 			#connect to detected port
-				self._parent.on_port_created(self.GPIO)
-				self._logger.info('Port ' + GPIOSerial + ' Found:')					
+				#self._parent.on_port_created(self.GPIO)
+				self._parent.connect(GPIOSerial)				
 			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
@@ -58,12 +60,11 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		gpio_handler = gpioPortEventHandler(self, '/dev/ttyAMA0')
 		self._observer = Observer()
 		self._observer.schedule(event_handler, "/dev", recursive=False)
-		self._observer.schedule(gpio_handler)
 		self._observer.start()
 
 		#get ports from settings
-		GPIOarray = ['/dev/ttyAMA0', '/dev/ttyS0']
-		gpio = gpioPortEventHandler(GPIOarray)
+		self.GPIOarray = ['/dev/ttyAMA0', '/dev/ttyS0']
+		self.gpio = gpioPortEventHandler(self, self.GPIOarray)
 
 	def on_port_created(self, port, *args, **kwargs):
 		# if we're already connected ignore it
