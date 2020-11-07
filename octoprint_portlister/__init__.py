@@ -20,7 +20,6 @@ class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 		if not event.is_directory:
 			self._parent.on_port_created(event.src_path)
 
-
 class gpioPortEventHandler():
 #setup class
 	def __init__(self, GPIO_new):
@@ -46,8 +45,7 @@ class gpioPortEventHandler():
 					threads.stop_threads = True
 			#connect to detected port
 				self._parent.on_port_created(self.GPIO)
-				self._logger.info('Port ' + GPIOSerial + ' Found:')
-    					
+				self._logger.info('Port ' + GPIOSerial + ' Found:')					
 			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
@@ -57,8 +55,10 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info("Port Lister %s %s" % (repr(args), repr(kwargs)))
 
 		event_handler = PortListEventHandler(self)
+		gpio_handler = gpioPortEventHandler(self, '/dev/ttyAMA0')
 		self._observer = Observer()
 		self._observer.schedule(event_handler, "/dev", recursive=False)
+		self._observer.schedule(gpio_handler)
 		self._observer.start()
 
 		#get ports from settings
