@@ -104,7 +104,7 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		self._observer.join()
 		self.SerialPort.stop()
 
-	def on_event(Disconnected)
+	def on_event(Disconnected):
 		self.SerialPort = gpioPortEventHandler(self)
 
 	def do_auto_connect(self, port, *args, **kwargs):
