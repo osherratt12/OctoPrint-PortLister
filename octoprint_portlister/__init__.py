@@ -2,8 +2,8 @@
 from __future__ import absolute_import
 
 import os
+from threading import Timer, Thread
 import serial
-from threading import Timer
 import watchdog
 from watchdog.observers import Observer
 
@@ -22,32 +22,43 @@ class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 
 class gpioPortEventHandler():
 #setup class
-	def __init__(self, parent, GPIO_new):
-		self.GPIO = GPIO_new
+	def __init__(self, parent):
 		self._parent = parent
-
+		self.SerialPort =  self._parent._settings.global_get(["serial", "port"])
 		self.thread_list = []
- 		self.stop_threads = False
- 		for i in range(len(self.GPIO)):
-			t = Thread(target=self.GPIO_Monitor, args=(self.GPIO[i],))
-			self.thread_list.append(t)				
-			print 'added ' + GPIO_new[i] + ' to thread list'
-		#start all threads
+		self.stop_threads = False
+
+		for i in range(len(self.SerialPort)):
+			t = Thread(target=self.Serial_Monitor, args=(self, self.SerialPort[i]))
+			self.thread_list.append(t)
+			self._logger.info("Port Lister: Thread created: " + self.SerialPort[i])			
 		for threads in self.thread_list:
- 			threads.start()
-#Serial monitor script
-	def GPIO_Monitor(self, GPIOSerial):
-		while not self.stop_threads:
-			self.ser = serial.Serial(GPIOSerial)
-			while not self.ser.in_waiting:
-				pass # do nothing
-			else:
-			#stop all threads
-				for threads in self.thread_list:
-					threads.stop_threads = True
-			#connect to detected port
-				#self._parent.on_port_created(self.GPIO)
-				self._parent.connect(GPIOSerial)				
+			threads.start()
+
+	def on_port_Found(self, SerialPortMonitor):
+		self.SerialPortMonitor = SerialPortMonitor
+		self._parent.on_port_created(self.SerialPortMonitor)
+
+	class Serial_Monitor():
+		def __init__(self, parent, SerialPortMonitor):
+			self._parent = parent
+			self.SerialPortMonitor = SerialPortMonitor
+			self.ser = serial.Serial(port=SerialPortMonitor, baudrate=250000, timeout=None, bytesize=serial.EIGHTBITS, parity='N', stopbits=1, xonxoff=False, rtscts=False, dsrdtr=False)
+			self.ser.flush()
+			self.x = ''
+			while True:
+				self.x = self.ser.read_until()
+				if "\n" not in (self.x).strip():
+					self._parent.stop()
+					self._parent.on_port_Found(self.SerialPortMonitor)
+					break
+				if self._parent.stop_threads:
+					break
+				
+
+	def stop(self):
+		self.stop_threads = True
+
 			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
@@ -57,14 +68,12 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info("Port Lister %s %s" % (repr(args), repr(kwargs)))
 
 		event_handler = PortListEventHandler(self)
-		gpio_handler = gpioPortEventHandler(self, '/dev/ttyAMA0')
 		self._observer = Observer()
 		self._observer.schedule(event_handler, "/dev", recursive=False)
 		self._observer.start()
 
 		#get ports from settings
-		self.GPIOarray = ['/dev/ttyAMA0', '/dev/ttyS0']
-		self.gpio = gpioPortEventHandler(self, self.GPIOarray)
+		self.SerialPort = gpioPortEventHandler(self)
 
 	def on_port_created(self, port, *args, **kwargs):
 		# if we're already connected ignore it
@@ -91,8 +100,12 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 
 	def on_shutdown(self, *args, **kwargs):
 		self._logger.info("Shutting down file system observer")
-		self._observer.stop();
+		self._observer.stop()
 		self._observer.join()
+		self.SerialPort.stop()
+
+	def on_event(Disconnected)
+		self.SerialPort = gpioPortEventHandler(self)
 
 	def do_auto_connect(self, port, *args, **kwargs):
 		try:
