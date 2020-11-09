@@ -8,4 +8,29 @@
             </div>
         </div>
     </div>
+    <div class="control-group">
+        <label class="control-label">{{ _('Serial Port:') }}</label>
+        <div class="controls" data-toggle="tooltip" title="{{ _('If you connected to your printer by the GPIO serial ports of the pi, enter the port name here e.g. /dev/ttyAMA0') }}">
+            <div class="input-append">
+                <input type="text" data-bind="value: settings.plugins.portlister.serial_port">
+            </div>
+        </div>
+    </div>
+     <div class="control-group">
+        <label class="control-label">{{ _('Baud Rate:') }}</label>
+        <div class="controls" data-toggle="tooltip" title="{{ _('If you connected to your printer by the GPIO serial ports of the pi, enter the baud rate here e.g. 250000') }}">
+            <div class="input-append">
+                <input type="text" data-bind="value: settings.plugins.portlister.serial_baud">
+            </div>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">{{ _('Power Down Delay:') }}</label>
+        <div class="controls" data-toggle="tooltip" title="{{ _('Adds a delay after the printer is disconnected before starting to look for the printer again') }}">
+            <div class="input-append">
+                <input type="number" step="1" class="input-mini text-right" data-bind="value: settings.plugins.portlister.serial_power_down">
+                <span class="add-on">secs</span>
+            </div>
+        </div>
+    </div>
 </form>
