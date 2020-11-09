@@ -28,4 +28,5 @@ something other than the default 20 seconds it takes my printer to boot up.
 plugins:
   portlister:
     autoconnect_delay: 20
+    
 ```
