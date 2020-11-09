@@ -10,6 +10,7 @@ from watchdog.observers import Observer
 import octoprint.plugin
 from octoprint.printer import get_connection_options
 from octoprint.util import get_exception_string
+from octoprint.events import Events
 
 class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 	
@@ -20,51 +21,39 @@ class PortListEventHandler(watchdog.events.FileSystemEventHandler):
 		if not event.is_directory:
 			self._parent.on_port_created(event.src_path)
 
-class gpioPortEventHandler():
+class serialPortEventHandler():
 #setup class
-	def __init__(self, parent):
+	def __init__(self, parent, ports, baud):
 		self._parent = parent
-		self.SerialPort =  self._parent._settings.global_get(["serial", "port"])
-		self.thread_list = []
-		self.stop_threads = False
+		self.SerialPort =  ports
+		self.baud = baud
+		self.thread = Thread(target=self.Serial_Monitor, args=(self.SerialPort, self.baud))
+		self._parent._logger.info('starting thread')
+		self.thread.start()
 
-		for i in range(len(self.SerialPort)):
-			t = Thread(target=self.Serial_Monitor, args=(self, self.SerialPort[i]))
-			self.thread_list.append(t)
-			self._logger.info("Port Lister: Thread created: " + self.SerialPort[i])			
-		for threads in self.thread_list:
-			threads.start()
-
-	def on_port_Found(self, SerialPortMonitor):
-		self.SerialPortMonitor = SerialPortMonitor
-		self._parent.on_port_created(self.SerialPortMonitor)
-
-	class Serial_Monitor():
-		def __init__(self, parent, SerialPortMonitor):
-			self._parent = parent
+	def Serial_Monitor(self, SerialPortMonitor, baudRate):
 			self.SerialPortMonitor = SerialPortMonitor
-			self.ser = serial.Serial(port=SerialPortMonitor, baudrate=250000, timeout=None, bytesize=serial.EIGHTBITS, parity='N', stopbits=1, xonxoff=False, rtscts=False, dsrdtr=False)
+			self.baudRate = baudRate
+			self.ser = serial.Serial(port=SerialPortMonitor, baudrate=baudRate, timeout=None)
 			self.ser.flush()
-			self.x = ''
+			self._parent._logger.info('port opened')
+
 			while True:
 				self.x = self.ser.read_until()
 				if "\n" not in (self.x).strip():
-					self._parent.stop()
-					self._parent.on_port_Found(self.SerialPortMonitor)
+					self._parent._logger.info('Port Found opening port %s' % self.SerialPortMonitor )
+					self._parent.on_port_created(self.SerialPortMonitor)
 					break
-				if self._parent.stop_threads:
-					break
-				
-
-	def stop(self):
-		self.stop_threads = True
-
+			
 			
 class PortListerPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.AssetPlugin,
                        octoprint.plugin.TemplatePlugin,
-                       octoprint.plugin.SettingsPlugin):
+                       octoprint.plugin.SettingsPlugin,
+                       octoprint.plugin.types.EventHandlerPlugin):
 	def on_after_startup(self, *args, **kwargs):
+		self.on_settings_initialized()
+
 		self._logger.info("Port Lister %s %s" % (repr(args), repr(kwargs)))
 
 		event_handler = PortListEventHandler(self)
@@ -72,8 +61,10 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		self._observer.schedule(event_handler, "/dev", recursive=False)
 		self._observer.start()
 
-		#get ports from settings
-		self.SerialPort = gpioPortEventHandler(self)
+		#start monitoring for hardware serial
+		self._logger.info('Serial Monitor Starting')
+		self.SerialPort = serialPortEventHandler(self, self.serial_serial_port, self.serial_serial_baud)
+		
 
 	def on_port_created(self, port, *args, **kwargs):
 		# if we're already connected ignore it
@@ -102,10 +93,11 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info("Shutting down file system observer")
 		self._observer.stop()
 		self._observer.join()
-		self.SerialPort.stop()
 
-	def on_event(Disconnected):
-		self.SerialPort = gpioPortEventHandler(self)
+	def on_event(self, event, payload):
+		if event == "Disconnected":
+			self._logger.info('restarting search')
+			Timer(self.serial_power_down, serialPortEventHandler, [self, self.serial_serial_port, self.serial_serial_baud]).start()
 
 	def do_auto_connect(self, port, *args, **kwargs):
 		try:
@@ -130,8 +122,26 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 		except:
 			self._logger.error("Exception in do_auto_connect %s", get_exception_string())
 
+	def on_settings_initialized(self):
+		self._logger.info("setting initialised")
+		self.serial_serial_port =  self._settings.get(["serial_port"])
+		self.serial_serial_baud = self._settings.get_int(["serial_baud"])
+		self.serial_power_down = self._settings.get_int(["serial_power_down"])
+
+
 	def get_settings_defaults(self, *args, **kwargs):
-		return dict(autoconnect_delay=20)
+		return dict(
+			autoconnect_delay=20,
+			serial_port='/dev/ttyAMA0',
+			serial_baud=250000,
+			serial_power_down=5
+
+			)
+
+	def on_settings_save(self, data):
+		self.serial_serial_port =  self._settings.get(["serial_port"])
+		self.serial_serial_baud = self._settings.get_int(["serial_baud"])
+		self.serial_power_down = self._settings.get_int(["serial_power_down"])
 
 	def get_assets(self, *args, **kwargs):
 		return dict(js=["js/portlister.js"])
@@ -144,7 +154,7 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 
 				# use github release method of version check
 				type="github_release",
-				user="markwal",
+				user="markwal, osherratt12",
 				repo="OctoPrint-PortLister",
 				current=self._plugin_version,
 
